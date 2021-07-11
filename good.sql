@@ -5,21 +5,23 @@
 -- * We won’t worry about user passwords for this project
 
 -- CREATE TABLE TOPICS
-CREATE TABLE (IF NOT EXISTS) users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username CHARACTER VARYING(25) NOT NULL,
     time_created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     username_updated TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(username),
     CONSTRAINT "name_not_null" CHECK ("username" IS NOT NULL)
-)
+);
 
 -- CREATE TRIGGER FUNCTION TO UPDATE TIME WHEN USER CHANGES USERNAME
-CREATE FUNCTION username_updated() RETURNS TRIGGER
+CREATE OR REPLACE FUNCTION trigger_username_updated()
+    RETURNS TRIGGER
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  IF NEW.username != OLD.username THEN
+  IF NEW.username != OLD.username
+  THEN
     NEW.username_updated := current_date;
   END IF;
   RETURN NEW;
@@ -40,7 +42,7 @@ CREATE TRIGGER trigger_username_updated
 -- * Topics can have an optional description of at most 500 characters.
 
 -- CREATE TABLE TOPICS
-CREATE TABLE (IF NOT EXISTS) topics (
+CREATE TABLE IF NOT EXISTS topics (
     id SERIAL PRIMARY KEY,
     topic_name CHARACTER VARYING(30) NOT NULL,
     topic_description CHARACTER VARYING(500) DEFAULT NULL,
@@ -54,7 +56,7 @@ CREATE TABLE (IF NOT EXISTS) topics (
 -- * Posts should contain either a URL or a text content, but not both.
 -- * If a topic gets deleted, all the posts associated with it should be automatically deleted too.
 -- * If the user who created the post gets deleted, then the post will remain, but it will become dissociated from that user.
-CREATE TABLE (IF NOT EXISTS) posts (
+CREATE TABLE IF NOT EXISTS posts (
     id SERIAL PRIMARY KEY,
     post_title CHARACTER VARYING(100) NOT NULL,
     post_url CHARACTER VARYING DEFAULT NULL,
@@ -76,7 +78,7 @@ CREATE TABLE (IF NOT EXISTS) posts (
 -- * If a post gets deleted, all comments associated with it should be automatically deleted too.
 -- * If the user who created the comment gets deleted, then the comment will remain, but it will become dissociated from that user.
 -- * If a comment gets deleted, then all its descendants in the thread structure should be automatically deleted too.
-CREATE TABLE (IF NOT EXISTS) comments (
+CREATE TABLE IF NOT EXISTS comments (
     id SERIAL PRIMARY KEY,
     comment_text TEXT NOT NULL,
     user_id INTEGER REFERENCES "users" ON DELETE SET NULL,
@@ -89,11 +91,11 @@ CREATE TABLE (IF NOT EXISTS) comments (
 -- Hint: you can store the (up/down) value of the vote as the values 1 and -1 respectively.
 -- If the user who cast a vote gets deleted, then all their votes will remain, but will become dissociated from the user.
 -- If a post gets deleted, then all the votes for that post should be automatically deleted too.
-CREATE TABLE (IF NOT EXISTS) votes (
+CREATE TABLE IF NOT EXISTS votes (
     id SERIAL PRIMARY KEY,
     vote SMALLINT DEFAULT 0,
     user_id INTEGER REFERENCES "users" ON DELETE SET NULL,
-    post_id INTEGER REFERNCES "posts" ON DELETE CASCADE,
+    post_id INTEGER REFERENCES "posts" ON DELETE CASCADE,
     time_created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT "one_vote" UNIQUE(user_id, post_id),
     CONSTRAINT "vote_up_or_down" CHECK (
