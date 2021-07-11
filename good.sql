@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS topics (
     time_created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(topic_name),
     CONSTRAINT "name_not_null" CHECK ("topic_name" IS NOT NULL)
-)
+);
 -- Allow registered users to create new posts on existing topics:
 -- * Posts have a required title of at most 100 characters
 -- * The title of a post can’t be empty.
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS posts (
         ("post_url" IS NOT NULL AND "post_content" IS NULL) OR
         ("post_content" IS NOT NULL AND "post_url" IS NULL)
     )
-)
+);
 
 
 -- Allow registered users to comment on existing posts:
@@ -84,8 +84,8 @@ CREATE TABLE IF NOT EXISTS comments (
     user_id INTEGER REFERENCES "users" ON DELETE SET NULL,
     post_id INTEGER REFERENCES "posts" ON DELETE CASCADE,
     comment_parent_id INTEGER REFERENCES "comments" ON DELETE CASCADE,
-    time_created TIMESTAMPTZ NOT NULL DEFAULT NOW(), 
-)
+    time_created TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- Make sure that a given user can only vote once on a given post:
 -- Hint: you can store the (up/down) value of the vote as the values 1 and -1 respectively.
@@ -100,8 +100,8 @@ CREATE TABLE IF NOT EXISTS votes (
     CONSTRAINT "one_vote" UNIQUE(user_id, post_id),
     CONSTRAINT "vote_up_or_down" CHECK (
         "vote" = 1 OR "vote" = -1
-    ),
-)
+    )
+);
 
 -- MIGRATE USERS FROM Bad Posts & Comments
 INSERT INTO users ("username")
@@ -111,10 +111,10 @@ INSERT INTO users ("username")
     SELECT DISTINCT username
     FROM bad_comments
     UNION
-    SELECT DISTINCT regexp_split_to_table(upvotes, ",") AS username
+    SELECT DISTINCT regexp_split_to_table(upvotes, ',') AS username
     FROM bad_posts
     UNION
-    SELECT DISTINCT regexp_split_to_table(downvotes, ",") AS username
+    SELECT DISTINCT regexp_split_to_table(downvotes, ',') AS username
     FROM bad_posts;
 
 -- MIGRATE TOPICS
@@ -125,44 +125,49 @@ INSERT INTO topics ("topic_name")
 
 -- MIGRATE POSTS
 INSERT INTO "posts" ("post_title", "post_url", "post_content", "user_id", "topic_id")
-    SELECT LEFT(bad_posts.titoe, 100),
-           CASE 
-            WHEN bad_posts.url IS NOT NULL AND bad_posts.text IS NOT NULL THEN bad_posts.url
-            WHEN bad_posts.url IS NOT NULL THEN bad_posts.url
-            WHEN bad_posts.text IS NOT NULL THEN bad_posts.text
-            ELSE NULL
-           END,
+    SELECT LEFT(bad_posts.title, 100),
+           bad_posts.url,
+           bad_posts.text_content,
+        --    CASE 
+        --     WHEN bad_posts.url IS NOT NULL AND bad_posts.text_content IS NOT NULL THEN bad_posts.url
+        --     WHEN bad_posts.url IS NOT NULL THEN bad_posts.url
+        --     WHEN bad_posts.text_content IS NOT NULL THEN bad_posts.text_content
+        --     ELSE NULL
+        --    END,
            users.id,
            topics.id
     FROM bad_posts
     JOIN users ON bad_posts.username = users.username
-    JOIN topics ON bad_posts.topic = topics.name;
+    JOIN topics ON bad_posts.topic = topics.topic_name;
 
 -- MIGRATE COMMENTS
 INSERT INTO "comments" ("comment_text", "user_id", "post_id")
-    SELECT bad_comments.text,
+    SELECT bad_comments.text_content,
            posts.id,
            users.id
     FROM bad_comments
     JOIN users ON bad_comments.username = users.username
     JOIN posts ON posts.id = bad_comments.post_id;
 
+-- MIGRATE VOTES
 INSERT INTO "votes" ("vote", "user_id", "post_id")
     SELECT 1 AS "upvote",
            users.id,
            bp.id
     FROM (
-        SELECT id, regexp_split_to_table(upvotes, ",")
+        SELECT id,
+               regexp_split_to_table(upvotes, ',') AS "upvote"
         FROM bad_posts
     ) bp
-    JOIN users ON users.username = bp.upvote_users;
+    JOIN users ON users.username = bp.upvote;
 
 INSERT INTO "votes" ("vote", "user_id", "post_id")
     SELECT -1 AS "downvote",
            users.id,
            bp.id
     FROM (
-        SELECT id, regexp_split_to_table(upvotes, ",")
+        SELECT id,
+               regexp_split_to_table(upvotes, ',') AS "downvote"
         FROM bad_posts
     ) bp
-    JOIN users ON users.username = bp.upvote_users;
+    JOIN users ON users.username = bp.downvote;
