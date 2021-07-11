@@ -4,6 +4,9 @@
 -- * Usernames can’t be empty
 -- * We won’t worry about user passwords for this project
 
+-- DROP TABLES
+DROP TABLE users, topics, posts, comments, votes;
+
 -- CREATE TABLE TOPICS
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -11,8 +14,11 @@ CREATE TABLE IF NOT EXISTS users (
     time_created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     username_updated TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(username),
-    CONSTRAINT "name_not_null" CHECK ("username" IS NOT NULL)
+    CONSTRAINT "name_not_null" CHECK ("username" IS NOT NULL),
+    CONSTRAINT "username_not_empty" CHECK (LENGTH(TRIM("username")) > 0);
 );
+
+CREATE INDEX "username_index" ON "users" ("username");
 
 -- CREATE TRIGGER FUNCTION TO UPDATE TIME WHEN USER CHANGES USERNAME
 CREATE OR REPLACE FUNCTION trigger_username_updated()
@@ -49,7 +55,12 @@ CREATE TABLE IF NOT EXISTS topics (
     time_created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(topic_name),
     CONSTRAINT "name_not_null" CHECK ("topic_name" IS NOT NULL)
+    CONSTRAINT "name_not_empty" CHECK (LENGTH(TRIM("topic_name")) > 0);
 );
+
+-- CREATE UNIQUE INDEX "unique_topics" ON "topics" (TRIM("topic_name")); -- FOUND ONLINE TO CREATE A UNIQUE INDEX
+
+CREATE INDEX ON topics ("topic_name" VARCHAR_PATTERN_OPS);
 -- Allow registered users to create new posts on existing topics:
 -- * Posts have a required title of at most 100 characters
 -- * The title of a post can’t be empty.
@@ -65,12 +76,14 @@ CREATE TABLE IF NOT EXISTS posts (
     topic_id INTEGER REFERENCES "topics" ON DELETE CASCADE,
     time_created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT "title_not_null" CHECK ("post_title" IS NOT NULL),
+    CONSTRAINT "title_not_empty" CHECK (LENGTH(TRIM("post_title")) > 0)
     CONSTRAINT "url_or_content" CHECK ( -- THIS IS SUPER COOL
         ("post_url" IS NOT NULL AND "post_content" IS NULL) OR
         ("post_content" IS NOT NULL AND "post_url" IS NULL)
     )
 );
 
+CREATE INDEX ON "posts" ("url" VARCHAR_PATTERN_OPS);
 
 -- Allow registered users to comment on existing posts:
 -- * A comment’s text content can’t be empty.
@@ -84,7 +97,8 @@ CREATE TABLE IF NOT EXISTS comments (
     user_id INTEGER REFERENCES "users" ON DELETE SET NULL,
     post_id INTEGER REFERENCES "posts" ON DELETE CASCADE,
     comment_parent_id INTEGER REFERENCES "comments" ON DELETE CASCADE,
-    time_created TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    time_created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT "text_not_empty" CHECK (LENGTH(TRIM("comment_text")) > 0)
 );
 
 -- Make sure that a given user can only vote once on a given post:
